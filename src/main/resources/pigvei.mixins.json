@@ -1,0 +1,25 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "me.mixins",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "ClientPlayerEntityAccessor",
+    "MinecraftClientAccessor",
+    "MixinClientConnection",
+    "MixinClientPlayerEntity",
+    "MixinClientPlayNetworkHandler",
+    "MixinCommandSuggestor",
+    "MixinEntity",
+    "MixinGameRenderer",
+    "MixinInGameHud",
+    "MixinKeyboard",
+    "MixinMinecraft",
+    "MixinSoundSystem",
+    "MixinParticleManager",
+    "MixinVec3D"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

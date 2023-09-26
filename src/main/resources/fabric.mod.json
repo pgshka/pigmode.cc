@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "pigvei",
+  "version": "${version}",
+  "name": "pigvei",
+  "description": "",
+  "authors": [],
+  "contact": {
+    "repo": "https://github.com/pgshka/pigvei"
+  },
+  "license": "All-Rights-Reserved",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "me.FabricEntryPoint"
+    ]
+  },
+  "mixins": [
+    "pigvei.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
