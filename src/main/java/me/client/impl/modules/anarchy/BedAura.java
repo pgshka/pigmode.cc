@@ -47,16 +47,22 @@ public final class BedAura extends Module {
         super("BedAura", "description", Category.ANARCHY);
     }
 
+    //TODO:
+    // - make auto refill
+    // - optimize the code
+
     private PlayerEntity closestTarget;
     private BlockPos toBreak, toRender;
-    private boolean disableModule;
-    private int tick;
+    private boolean disableModule, upPlace;
+    private int tick, mainSlot;
     private short rotYaw;
 
     NumberOption range = new NumberOption.Builder(4).name("Range").setBounds(0, 8).build(this);
     NumberOption delay = new NumberOption.Builder(4).name("Delay").setBounds(0, 20).build(this);
     BooleanOption breakBed = new BooleanOption.Builder(true).name("Break Bed").build(this);
     BooleanOption rotate = new BooleanOption.Builder(true).name("Rotate").build(this);
+    BooleanOption onlyFeet = new BooleanOption.Builder(false).name("Only Feet").build(this);
+    BooleanOption refill = new BooleanOption.Builder(false).name("Refill").build(this);
 
     private PlayerEntity findTarget() {
         List<AbstractClientPlayerEntity> players = mc.world.getPlayers();
@@ -72,23 +78,28 @@ public final class BedAura extends Module {
         List<BlockPos> maybe = new ArrayList<>();
         BlockPos posForCheck = pos;
 
-        if (mc.world.getBlockState(posForCheck).getBlock() instanceof BedBlock){
-            doBreak(posForCheck);
-            return null;
+        if (mc.world.getBlockState(posForCheck).getBlock() instanceof BedBlock) {
+            doBreak(posForCheck); return null;
         }
-        if (mc.world.getBlockState(posForCheck.up()).getBlock() instanceof BedBlock){
-            doBreak(posForCheck.up());
-            return null;
+        if (mc.world.getBlockState(posForCheck.up()).getBlock() instanceof BedBlock) {
+            doBreak(posForCheck.up()); return null;
         }
 
-        if (canPlaceBed(posForCheck.south()))
-            maybe.add(posForCheck.south());
-        if (canPlaceBed(posForCheck.west()))
-            maybe.add(posForCheck.west());
-        if (canPlaceBed(posForCheck.north()))
-            maybe.add(posForCheck.north());
-        if (canPlaceBed(posForCheck.east()))
-            maybe.add(posForCheck.east());
+        if (canPlaceBed(posForCheck.south())) maybe.add(posForCheck.south());
+        if (canPlaceBed(posForCheck.west())) maybe.add(posForCheck.west());
+        if (canPlaceBed(posForCheck.north())) maybe.add(posForCheck.north());
+        if (canPlaceBed(posForCheck.east())) maybe.add(posForCheck.east());
+
+        //up check if down is empy
+        if (maybe.isEmpty() && onlyFeet.getValue()) {
+            posForCheck = pos.up();
+            if (canPlaceBed(posForCheck.south())) maybe.add(posForCheck.south());
+            if (canPlaceBed(posForCheck.west())) maybe.add(posForCheck.west());
+            if (canPlaceBed(posForCheck.north())) maybe.add(posForCheck.north());
+            if (canPlaceBed(posForCheck.east())) maybe.add(posForCheck.east());
+
+            if (!maybe.isEmpty()) upPlace = true;
+        }
 
         return maybe;
     }
@@ -111,7 +122,7 @@ public final class BedAura extends Module {
         return true;
     }
 
-    private boolean swapToBed(){
+    private boolean swapToBed() {
         if (ItemUtil.getItemSlot(BedItem.class) != -1) {
             ItemUtil.swapSlot(ItemUtil.getItemSlot(BedItem.class));
             return true;
@@ -120,7 +131,8 @@ public final class BedAura extends Module {
     }
 
     private void doPlace(BlockPos playerTargetPos) {
-        if (swapToBed()) {} else {
+        if (swapToBed()) {
+        } else {
             ChatUtil.send(getLabel() + " - Disabled, because you dont have beds in your hotbars");
             disableModule = true;
         }
@@ -129,16 +141,13 @@ public final class BedAura extends Module {
         BlockPos playerTarget = playerTargetPos;
         List<BlockPos> placeList = getPlacePositon(playerTarget);
 
-        if (placeList == null) return;
+        if (placeList == null || placeList.isEmpty()) return;
 
-        if (placeList.isEmpty()) {
-            placeList = getPlacePositon(playerTargetPos.up());
-            playerTarget = playerTargetPos.up();
-        }
-        if (!placeList.isEmpty()) {
-            placeList.sort(Comparator.comparing(pos -> mc.player.squaredDistanceTo(pos.getX(), pos.getY(), pos.getZ())));
-            placeTarget = placeList.get(0);
-        } else return;
+        placeList.sort(Comparator.comparing(pos -> mc.player.squaredDistanceTo(pos.getX(), pos.getY(), pos.getZ())));
+        placeTarget = placeList.get(0);
+
+        if (upPlace)
+            playerTarget = playerTarget.up();
 
         rotYaw = 180;
         if (playerTarget.equals(placeTarget.east())) rotYaw = -90;
@@ -153,17 +162,25 @@ public final class BedAura extends Module {
 
         toBreak = placeTarget;
         toRender = placeTarget;
+        upPlace = false;
     }
 
-    private boolean canPlaceBed(BlockPos pos) {
-        if (!(mc.world.getBlockState(pos).getBlock() instanceof AirBlock
-                || mc.world.getBlockState(pos).getBlock() instanceof FireBlock)) return false;
-        if (mc.world.getBlockState(pos.down()).getBlock() instanceof AirBlock) return false;
-        if (mc.world.getBlockState(pos.down()).getBlock() instanceof FireBlock) return false;
-        if (!mc.world.getOtherEntities(null, new Box(pos)).isEmpty()) return false;
-        return true;
-    }
+    private void refillBed(){
+        if (!(mc.player.getInventory().getStack(mainSlot).getItem() instanceof BedItem) && !mc.player.isCreative()) {
+            Integer bedSlot = null;
+            for (int slot = 0; slot < 36; slot++) {
+                ItemStack stack = mc.player.getInventory().getStack(slot);
+                if (stack.getItem() instanceof BedItem) bedSlot = slot;
+            }
+            if (bedSlot == null || bedSlot == mainSlot) return;
 
+            mc.interactionManager.clickSlot(mc.player.currentScreenHandler.syncId, mainSlot + 35, 0, SlotActionType.PICKUP, mc.player);
+            mc.interactionManager.clickSlot(mc.player.currentScreenHandler.syncId, bedSlot < 9 ? (bedSlot + 36) : (bedSlot), 0, SlotActionType.PICKUP, mc.player);
+            mc.interactionManager.clickSlot(mc.player.currentScreenHandler.syncId, mainSlot + 35, 0, SlotActionType.PICKUP, mc.player);
+            //mc.interactionManager.clickSlot(0, slot, 40, SlotActionType.SWAP, mc.player);
+
+        }
+    }
     @Override
     public void tick() {
         if (nullCheck()) return;
@@ -172,6 +189,9 @@ public final class BedAura extends Module {
 
         closestTarget = findTarget();
         if (closestTarget != null) {
+            if (!mc.player.getInventory().getStack(mainSlot).getItem().equals(BedItem.class) && refill.getValue())
+                refillBed();
+
             if (toBreak == null)
                 doPlace(closestTarget.getBlockPos());
             if (tick >= delay.getValue().intValue() && toBreak != null) {
@@ -195,18 +215,31 @@ public final class BedAura extends Module {
         Renderer3d.stopRenderThroughWalls();
     }
 
+    private boolean canPlaceBed(BlockPos pos) {
+        if (!(mc.world.getBlockState(pos).getBlock() instanceof AirBlock
+                || mc.world.getBlockState(pos).getBlock() instanceof FireBlock)) return false;
+        if (mc.world.getBlockState(pos.down()).getBlock() instanceof AirBlock) return false;
+        if (mc.world.getBlockState(pos.down()).getBlock() instanceof FireBlock) return false;
+        if (!mc.world.getOtherEntities(null, new Box(pos)).isEmpty()) return false;
+        return true;
+    }
+
     @Override
     public void onDisable() {
-        toBreak = null; toRender = null;
-        tick = 0; rotYaw = 0;
+        toBreak = null;
+        toRender = null;
+        tick = 0;
+        rotYaw = 0;
         disableModule = false;
     }
 
     @Override
     public void onEnable() {
-        if (ItemUtil.getItemSlot(BedItem.class) == -1){
+        if (ItemUtil.getItemSlot(BedItem.class) == -1) {
             ChatUtil.send(getLabel() + " - Disabled, because you dont have beds in your hotbars");
             disableModule = true;
+        } else {
+            mainSlot = ItemUtil.getItemSlot(BedItem.class);
         }
     }
 }
